@@ -17,6 +17,7 @@ class Program
     static Stack<Order> refundStack = new Stack<Order>();
     static int nextOrderId = 1001; // Track next order ID
     static Dictionary<string, int> offerUsageCount = new Dictionary<string, int>();
+    static Dictionary<string, double> offerActualSavings = new Dictionary<string, double>();
 
     static void Main(string[] args)
     {
@@ -193,24 +194,29 @@ class Program
                 string[] data = line.Split(',');
                 if (data.Length >= 3)
                 {
-                    string restaurantId = data[0];
-                    string offerCode = data[1];
-                    string offerDesc = data[2];
+                    string restaurantName = data[0].Trim();  // Changed: now reads name
+                    string offerCode = data[1].Trim();
+                    string offerDesc = data[2].Trim();
                     double discount = 0;
 
-                    // Try to parse discount (might be empty for non-discount offers like "Free Delivery")
-                    if (data.Length > 3 && !string.IsNullOrEmpty(data[3]))
+                    // Try to parse discount (might be empty or "-" for non-discount offers)
+                    if (data.Length > 3 && !string.IsNullOrEmpty(data[3]) && data[3] != "-")
                     {
                         double.TryParse(data[3], out discount);
                     }
 
-                    // Find restaurant and add offer
-                    Restaurant restaurant = FindRestaurantById(restaurantId);
+                    // Find restaurant by NAME instead of ID
+                    Restaurant restaurant = FindRestaurantByName(restaurantName);
                     if (restaurant != null)
                     {
                         SpecialOffer offer = new SpecialOffer(offerCode, offerDesc, discount);
                         restaurant.specialOffers.Add(offer);
                         count++;
+                    }
+                    else
+                    {
+                        // Debug: Show which restaurants couldn't be found
+                        Console.WriteLine($"Warning: Restaurant '{restaurantName}' not found for offer {offerCode}");
                     }
                 }
             }
@@ -422,6 +428,19 @@ class Program
         }
         return null;
     }
+
+    static Restaurant FindRestaurantByName(string restaurantName)
+    {
+        foreach (Restaurant r in restaurantList)
+        {
+            if (r.restaurantName.ToLower() == restaurantName.ToLower())
+            {
+                return r;
+            }
+        }
+        return null;
+    }
+
 
     // Helper: Find customer by email
     static Customer FindCustomerByEmail(string email)
@@ -660,12 +679,18 @@ class Program
                     SpecialOffer selectedOffer = restaurant.specialOffers[offerNum - 1];
 
                     // Apply discount
+                    // Track the actual savings
+                    double actualSavings = 0;
+
+                    // Apply discount
                     if (selectedOffer.discount > 0)
                     {
                         double Subtotal = newOrder.orderTotal - Order.DELIVERY_FEE;
                         double discountAmount = Subtotal * (selectedOffer.discount / 100.0);
                         double newSubtotal = Subtotal - discountAmount;
                         newOrder.orderTotal = newSubtotal + Order.DELIVERY_FEE;
+
+                        actualSavings = discountAmount;  // TRACK ACTUAL SAVINGS
 
                         Console.WriteLine($"\n✓ Applied {selectedOffer.offerCode}: {selectedOffer.discount}% off");
                         Console.WriteLine($"  Discount: -${discountAmount:F2}");
@@ -677,20 +702,23 @@ class Program
                         if (selectedOffer.offerDesc.ToLower().Contains("free delivery"))
                         {
                             newOrder.orderTotal = newOrder.orderTotal - Order.DELIVERY_FEE;
+                            actualSavings = Order.DELIVERY_FEE;  // TRACK ACTUAL SAVINGS
                             Console.WriteLine($"\n✓ Applied {selectedOffer.offerCode}: Free Delivery!");
                             Console.WriteLine($"  Savings: ${Order.DELIVERY_FEE:F2}");
                         }
                     }
 
-                    // Track offer usage
+                    // Track offer usage and savings
                     string offerKey = $"{restaurant.restaurantId}_{selectedOffer.offerCode}";
                     if (offerUsageCount.ContainsKey(offerKey))
                     {
                         offerUsageCount[offerKey]++;
+                        offerActualSavings[offerKey] += actualSavings;  // ADD TO TOTAL SAVINGS
                     }
                     else
                     {
                         offerUsageCount[offerKey] = 1;
+                        offerActualSavings[offerKey] = actualSavings;  // INITIALIZE SAVINGS
                     }
                 }
                 else
@@ -702,13 +730,31 @@ class Program
 
         // Ask for special request
         Console.Write("\nAdd special request? [Y/N]: ");
-        string specialRequestChoice = Console.ReadLine().ToUpper();
+        string specialRequestChoice = "";
+        while (true)
+        {
+            specialRequestChoice = Console.ReadLine().ToUpper();
+
+            if (specialRequestChoice == "Y" || specialRequestChoice == "N")
+            {
+                break;
+            }
+            Console.Write("Error: Please enter Y or N: ");
+        }
 
         string specialRequest = "";
         if (specialRequestChoice == "Y")
         {
             Console.Write("Enter special request: ");
             specialRequest = Console.ReadLine();
+
+            // Optional: validate not empty
+            while (string.IsNullOrWhiteSpace(specialRequest))
+            {
+                Console.Write("Error: Special request cannot be empty. Please enter your request: ");
+                specialRequest = Console.ReadLine();
+            }
+
             // Store in first item's Customise field
             if (newOrder.orderedFoodItems.Count > 0)
             {
@@ -1699,23 +1745,16 @@ class Program
                     restaurantOfferCount += usageCount;
                     totalOffersUsed += usageCount;
 
-                    // Calculate savings (estimate based on average order)
-                    double estimatedSavings = 0;
-                    if (offer.discount > 0)
-                    {
-                        // Assume average order of $20
-                        estimatedSavings = 20 * (offer.discount / 100.0) * usageCount;
-                    }
-                    else if (offer.offerDesc.ToLower().Contains("free delivery"))
-                    {
-                        estimatedSavings = Order.DELIVERY_FEE * usageCount;
-                    }
+                    // Get ACTUAL savings from tracking
+                    double actualSavings = offerActualSavings.ContainsKey(offerKey)
+                        ? offerActualSavings[offerKey]
+                        : 0;
 
-                    restaurantSavings += estimatedSavings;
-                    totalSavings += estimatedSavings;
+                    restaurantSavings += actualSavings;
+                    totalSavings += actualSavings;
 
                     Console.WriteLine($"  • {offer.offerCode} ({offer.offerDesc}): {usageCount} times");
-                    Console.WriteLine($"    Estimated savings: ${estimatedSavings:F2}");
+                    Console.WriteLine($"    Actual savings: ${actualSavings:F2}");
 
                     // Track most used offer
                     if (usageCount > maxUsageCount)
