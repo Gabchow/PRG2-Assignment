@@ -42,12 +42,12 @@ public class OrderedFoodItem
 
     public double CalculateSubtotal()
     {
-        SubTotal = FoodItem.ItemPrice * QtyOrdered;
+        SubTotal = FoodItem.itemPrice * QtyOrdered;
         return SubTotal;
     }
 
     public override string ToString()
     {
-        return $"{FoodItem.ItemName} - {QtyOrdered}";
+        return $"{FoodItem.itemName} - {QtyOrdered}";
     }
 }

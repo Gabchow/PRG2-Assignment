@@ -90,7 +90,7 @@ public class Restaurant
     public void DisplayMenu()
     {
         Console.WriteLine($"\n{RestaurantName} ({RestaurantId})");
-        foreach (FoodItem item in Menu.FoodItems)
+        foreach (FoodItem item in menu.foodItems)
         {
             Console.WriteLine($" - {item}");
         }

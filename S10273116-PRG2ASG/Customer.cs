@@ -71,7 +71,7 @@ public class Customer
         List<Order> pendingOrders = new List<Order>();
         foreach (Order order in OrderList)
         {
-            if (order.OrderStatus == "Pending")
+            if (order.orderStatus == "Pending")
             {
                 pendingOrders.Add(order);
             }
@@ -83,7 +83,7 @@ public class Customer
     {
         foreach (Order order in OrderList)
         {
-            if (order.OrderId == orderId)
+            if (order.orderId == orderId)
             {
                 return order;
             }

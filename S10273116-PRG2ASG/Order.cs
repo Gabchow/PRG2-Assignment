@@ -170,14 +170,14 @@ public class Order
 
     public override string ToString()
     {
-        return $"Order {OrderId}: {Customer.CustomerName} - {Restaurant.RestaurantName} - ${OrderTotal:F2} - {OrderStatus}";
+        return $"Order {OrderId}: {Customer.customerName} - {Restaurant.restaurantName} - ${OrderTotal:F2} - {OrderStatus}";
     }
 
     public string DisplayFullDetails()
     {
         string result = $"Order ID: {OrderId}\n";
-        result += $"Customer: {Customer.CustomerName}\n";
-        result += $"Restaurant: {Restaurant.RestaurantName}\n";
+        result += $"Customer: {Customer.customerName}\n";
+        result += $"Restaurant: {Restaurant.restaurantName}\n";
         result += "Ordered Items:\n";
 
         for (int i = 0; i < OrderedFoodItems.Count; i++)
