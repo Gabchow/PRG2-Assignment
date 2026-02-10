@@ -16,6 +16,7 @@ class Program
     static List<Customer> customerList = new List<Customer>();
     static Stack<Order> refundStack = new Stack<Order>();
     static int nextOrderId = 1001; // Track next order ID
+    static Dictionary<string, int> offerUsageCount = new Dictionary<string, int>();
 
     static void Main(string[] args)
     {
@@ -24,6 +25,7 @@ class Program
         // Load all data files
         LoadRestaurants();
         LoadFoodItems();
+        LoadSpecialOffers();
         LoadCustomers();
         LoadOrders();
 
@@ -60,6 +62,15 @@ class Program
                 case "8":
                     DisplayTotalOrderAmounts();
                     break;
+                case "9":
+                    DisplaySpecialOffersUsage();
+                    break;
+                case "10":
+                    MarkOrderAsFavourite();
+                    break;
+                case "11":
+                    DisplayFavouriteOrdersStats();
+                    break;
                 case "0":
                     exit = true;
                     SaveQueueAndStack();
@@ -72,9 +83,7 @@ class Program
 
             if (!exit)
             {
-                Console.WriteLine("\nPress any key to continue...");
-                Console.ReadKey();
-                Console.Clear();
+                Console.WriteLine("\n" + new string('=', 50) + "\n");
             }
         }
     }
@@ -90,11 +99,14 @@ class Program
         Console.WriteLine("6. Delete an existing order");
         Console.WriteLine("7. Bulk process unprocessed orders");
         Console.WriteLine("8. Display total order amounts");
+        Console.WriteLine("9. Display special offers usage");
+        Console.WriteLine("10. Mark order as favourite");
+        Console.WriteLine("11. Display favourite orders stats");
         Console.WriteLine("0. Exit");
         Console.Write("Enter your choice: ");
     }
 
-    // Feature 1: Load Restaurants
+    // Feature 1: Load Restaurants - Gabriel
     static void LoadRestaurants()
     {
         try
@@ -123,7 +135,7 @@ class Program
         }
     }
 
-    // Feature 1: Load Food Items
+    // Feature 1: Load Food Items - Gabriel
     static void LoadFoodItems()
     {
         try
@@ -154,6 +166,9 @@ class Program
                     }
                 }
             }
+
+           
+
             Console.WriteLine($"{count} food items loaded!");
         }
         catch (Exception ex)
@@ -162,7 +177,52 @@ class Program
         }
     }
 
-    // Feature 2: Load Customers
+    // Load Special Offers from CSV - part of bonus feature c - Special Offer - Raghav
+    static void LoadSpecialOffers()
+    {
+        try
+        {
+            string[] lines = File.ReadAllLines("specialoffers.csv");
+            int count = 0;
+
+            for (int i = 1; i < lines.Length; i++) // Skip header
+            {
+                string line = lines[i].Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+
+                string[] data = line.Split(',');
+                if (data.Length >= 3)
+                {
+                    string restaurantId = data[0];
+                    string offerCode = data[1];
+                    string offerDesc = data[2];
+                    double discount = 0;
+
+                    // Try to parse discount (might be empty for non-discount offers like "Free Delivery")
+                    if (data.Length > 3 && !string.IsNullOrEmpty(data[3]))
+                    {
+                        double.TryParse(data[3], out discount);
+                    }
+
+                    // Find restaurant and add offer
+                    Restaurant restaurant = FindRestaurantById(restaurantId);
+                    if (restaurant != null)
+                    {
+                        SpecialOffer offer = new SpecialOffer(offerCode, offerDesc, discount);
+                        restaurant.specialOffers.Add(offer);
+                        count++;
+                    }
+                }
+            }
+            Console.WriteLine($"{count} special offers loaded!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading special offers: {ex.Message}");
+        }
+    }
+
+    // Feature 2: Load Customers - Raghav
     static void LoadCustomers()
     {
         try
@@ -191,7 +251,7 @@ class Program
         }
     }
 
-    // Feature 2: Load Orders
+    // Feature 2: Load Orders - Raghav
     static void LoadOrders()
     {
         try
@@ -389,7 +449,7 @@ class Program
         return null;
     }
 
-    // Feature 3: List all restaurants and menu items
+    // Feature 3: List all restaurants and menu items - Raghav
     static void ListAllRestaurantsAndMenuItems()
     {
         Console.WriteLine("\nAll Restaurants and Menu Items");
@@ -401,7 +461,7 @@ class Program
         }
     }
 
-    // Feature 4: List all orders
+    // Feature 4: List all orders - Gabriel
     static void ListAllOrders()
     {
         Console.WriteLine("\nAll Orders");
@@ -426,7 +486,7 @@ class Program
         }
     }
 
-    // Feature 5: Create new order
+    // Feature 5: Create new order - Raghav
     static void CreateNewOrder()
     {
         Console.WriteLine("\nCreate New Order");
@@ -574,8 +634,74 @@ class Program
             Console.WriteLine($"Added: {selectedItem.itemName} x{quantity}");
         }
 
+        // Display and apply special offers
+        if (restaurant.specialOffers.Count > 0)
+        {
+            Console.WriteLine("\n===== Available Special Offers =====");
+            for (int i = 0; i < restaurant.specialOffers.Count; i++)
+            {
+                SpecialOffer offer = restaurant.specialOffers[i];
+                Console.WriteLine($"{i + 1}. {offer.offerCode} - {offer.offerDesc}");
+                if (offer.discount > 0)
+                {
+                    Console.WriteLine($"   Discount: {offer.discount}% off");
+                }
+            }
+
+            Console.Write("\nApply a special offer? [Y/N]: ");
+            string applyOfferChoice = Console.ReadLine().ToUpper();
+
+            if (applyOfferChoice == "Y")
+            {
+                Console.Write("Enter offer number: ");
+                if (int.TryParse(Console.ReadLine(), out int offerNum) &&
+                    offerNum >= 1 && offerNum <= restaurant.specialOffers.Count)
+                {
+                    SpecialOffer selectedOffer = restaurant.specialOffers[offerNum - 1];
+
+                    // Apply discount
+                    if (selectedOffer.discount > 0)
+                    {
+                        double Subtotal = newOrder.orderTotal - Order.DELIVERY_FEE;
+                        double discountAmount = Subtotal * (selectedOffer.discount / 100.0);
+                        double newSubtotal = Subtotal - discountAmount;
+                        newOrder.orderTotal = newSubtotal + Order.DELIVERY_FEE;
+
+                        Console.WriteLine($"\n✓ Applied {selectedOffer.offerCode}: {selectedOffer.discount}% off");
+                        Console.WriteLine($"  Discount: -${discountAmount:F2}");
+                        Console.WriteLine($"  New subtotal: ${newSubtotal:F2}");
+                    }
+                    else
+                    {
+                        // Free delivery offer
+                        if (selectedOffer.offerDesc.ToLower().Contains("free delivery"))
+                        {
+                            newOrder.orderTotal = newOrder.orderTotal - Order.DELIVERY_FEE;
+                            Console.WriteLine($"\n✓ Applied {selectedOffer.offerCode}: Free Delivery!");
+                            Console.WriteLine($"  Savings: ${Order.DELIVERY_FEE:F2}");
+                        }
+                    }
+
+                    // Track offer usage
+                    string offerKey = $"{restaurant.restaurantId}_{selectedOffer.offerCode}";
+                    if (offerUsageCount.ContainsKey(offerKey))
+                    {
+                        offerUsageCount[offerKey]++;
+                    }
+                    else
+                    {
+                        offerUsageCount[offerKey] = 1;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("Invalid offer number. No offer applied.");
+                }
+            }
+        }
+
         // Ask for special request
-        Console.Write("Add special request? [Y/N]: ");
+        Console.Write("\nAdd special request? [Y/N]: ");
         string specialRequestChoice = Console.ReadLine().ToUpper();
 
         string specialRequest = "";
@@ -660,7 +786,7 @@ class Program
         Console.WriteLine($"\nOrder {newOrder.orderId} created successfully! Status: {newOrder.orderStatus}");
     }
 
-    // Feature 6: Process order
+    // Feature 6: Process order - Gabriel
     static void ProcessOrder()
     {
         Console.WriteLine("\nProcess Order");
@@ -798,7 +924,7 @@ class Program
         Console.WriteLine($"\n{ordersProcessed} order(s) processed.");
     }
 
-    // Feature 7: Modify order
+    // Feature 7: Modify order - Raghav
     static void ModifyOrder()
     {
         Console.WriteLine("\nModify Order");
@@ -1230,7 +1356,7 @@ class Program
         }
     }
 
-    // Feature 8: Delete order
+    // Feature 8: Delete order - Gabriel
     static void DeleteOrder()
     {
         Console.WriteLine("\nDelete Order");
@@ -1335,7 +1461,7 @@ class Program
         Console.WriteLine($"Order {orderId} cancelled. Refund of ${selectedOrder.orderTotal:F2} processed.");
     }
 
-    // Advanced Feature (a): Bulk process unprocessed orders
+    // Advanced Feature (a): Bulk process unprocessed orders - Raghav
     static void BulkProcessOrders()
     {
         Console.WriteLine("\nBulk Process Unprocessed Orders");
@@ -1431,7 +1557,7 @@ class Program
         Console.WriteLine($"Percentage of automatically processed orders: {percentageProcessed:F2}%");
     }
 
-    // Advanced Feature (b): Display total order amounts
+    // Advanced Feature (b): Display total order amounts - Gabriel
     static void DisplayTotalOrderAmounts()
     {
         Console.WriteLine("\nTotal Order Amounts");
@@ -1534,5 +1660,292 @@ class Program
         {
             Console.WriteLine($"Error saving data: {ex.Message}");
         }
+    }
+    // Advanced Feature: Display Special Offers Usage
+    static void DisplaySpecialOffersUsage()
+    {
+        Console.WriteLine("\n===== Special Offers Usage Statistics =====");
+        Console.WriteLine("============================================");
+
+        if (offerUsageCount.Count == 0)
+        {
+            Console.WriteLine("No special offers have been used yet.");
+            return;
+        }
+
+        // Display usage by restaurant
+        Console.WriteLine("\nOffer Usage by Restaurant:");
+        Console.WriteLine("─────────────────────────────────────────");
+
+        double totalSavings = 0;
+        int totalOffersUsed = 0;
+        string mostUsedOfferKey = "";
+        int maxUsageCount = 0;
+
+        foreach (Restaurant restaurant in restaurantList)
+        {
+            int restaurantOfferCount = 0;
+            double restaurantSavings = 0;
+
+            Console.WriteLine($"\n{restaurant.restaurantName} ({restaurant.restaurantId}):");
+
+            foreach (SpecialOffer offer in restaurant.specialOffers)
+            {
+                string offerKey = $"{restaurant.restaurantId}_{offer.offerCode}";
+
+                if (offerUsageCount.ContainsKey(offerKey))
+                {
+                    int usageCount = offerUsageCount[offerKey];
+                    restaurantOfferCount += usageCount;
+                    totalOffersUsed += usageCount;
+
+                    // Calculate savings (estimate based on average order)
+                    double estimatedSavings = 0;
+                    if (offer.discount > 0)
+                    {
+                        // Assume average order of $20
+                        estimatedSavings = 20 * (offer.discount / 100.0) * usageCount;
+                    }
+                    else if (offer.offerDesc.ToLower().Contains("free delivery"))
+                    {
+                        estimatedSavings = Order.DELIVERY_FEE * usageCount;
+                    }
+
+                    restaurantSavings += estimatedSavings;
+                    totalSavings += estimatedSavings;
+
+                    Console.WriteLine($"  • {offer.offerCode} ({offer.offerDesc}): {usageCount} times");
+                    Console.WriteLine($"    Estimated savings: ${estimatedSavings:F2}");
+
+                    // Track most used offer
+                    if (usageCount > maxUsageCount)
+                    {
+                        maxUsageCount = usageCount;
+                        mostUsedOfferKey = $"{restaurant.restaurantName} - {offer.offerCode}";
+                    }
+                }
+            }
+
+            if (restaurantOfferCount > 0)
+            {
+                Console.WriteLine($"  Total offers used: {restaurantOfferCount}");
+                Console.WriteLine($"  Total savings: ${restaurantSavings:F2}");
+            }
+            else
+            {
+                Console.WriteLine("  No offers used");
+            }
+        }
+
+        // Overall summary
+        Console.WriteLine("\n═════════════════════════════════════════");
+        Console.WriteLine("Overall Summary:");
+        Console.WriteLine($"Total special offers used: {totalOffersUsed}");
+        Console.WriteLine($"Total customer savings: ${totalSavings:F2}");
+        if (!string.IsNullOrEmpty(mostUsedOfferKey))
+        {
+            Console.WriteLine($"Most popular offer: {mostUsedOfferKey} ({maxUsageCount} times)");
+        }
+        Console.WriteLine("═════════════════════════════════════════");
+    }
+
+    // Feature: Mark Order as Favourite
+    static void MarkOrderAsFavourite()
+    {
+        Console.WriteLine("\nMark Order as Favourite");
+        Console.WriteLine("========================");
+
+        // Get customer email
+        Console.Write("Enter Customer Email: ");
+        string customerEmail = Console.ReadLine();
+        Customer customer = FindCustomerByEmail(customerEmail);
+
+        if (customer == null)
+        {
+            Console.WriteLine("Error: Customer not found.");
+            return;
+        }
+
+        // Display all delivered orders
+        List<Order> deliveredOrders = new List<Order>();
+        foreach (Order order in customer.orderList)
+        {
+            if (order.orderStatus == "Delivered")
+            {
+                deliveredOrders.Add(order);
+            }
+        }
+
+        if (deliveredOrders.Count == 0)
+        {
+            Console.WriteLine("No delivered orders found for this customer.");
+            return;
+        }
+
+        // Display orders
+        Console.WriteLine("\nDelivered Orders:");
+        for (int i = 0; i < deliveredOrders.Count; i++)
+        {
+            Order order = deliveredOrders[i];
+            string favMark = order.IsFavourite ? "★" : " ";
+            Console.WriteLine($"{favMark} {order.orderId}. {order.restaurant.restaurantName} - ${order.orderTotal:F2}");
+        }
+
+        // Get order ID
+        Console.Write("\nEnter Order ID to mark/unmark as favourite: ");
+        if (!int.TryParse(Console.ReadLine(), out int orderId))
+        {
+            Console.WriteLine("Error: Invalid Order ID.");
+            return;
+        }
+
+        Order selectedOrder = customer.FindOrder(orderId);
+
+        if (selectedOrder == null)
+        {
+            Console.WriteLine("Error: Order not found.");
+            return;
+        }
+
+        if (selectedOrder.orderStatus != "Delivered")
+        {
+            Console.WriteLine("Error: Only delivered orders can be marked as favourite.");
+            return;
+        }
+
+        // Toggle favourite status
+        selectedOrder.IsFavourite = !selectedOrder.IsFavourite;
+
+        if (selectedOrder.IsFavourite)
+        {
+            Console.WriteLine($"✓ Order {orderId} marked as favourite!");
+        }
+        else
+        {
+            Console.WriteLine($"✓ Order {orderId} removed from favourites.");
+        }
+    }
+
+    // Advanced Feature: Display Favourite Orders Statistics
+    static void DisplayFavouriteOrdersStats()
+    {
+        Console.WriteLine("\n===== Favourite Orders Statistics =====");
+        Console.WriteLine("========================================");
+
+        int totalFavouriteOrders = 0;
+        double totalFavouriteAmount = 0;
+        Dictionary<string, int> restaurantFavCount = new Dictionary<string, int>();
+
+        // Process each customer
+        foreach (Customer customer in customerList)
+        {
+            List<Order> customerFavourites = new List<Order>();
+            double customerFavTotal = 0;
+            Dictionary<string, int> customerRestaurantCount = new Dictionary<string, int>();
+
+            // Get favourite orders for this customer
+            foreach (Order order in customer.orderList)
+            {
+                if (order.IsFavourite && order.orderStatus == "Delivered")
+                {
+                    customerFavourites.Add(order);
+                    customerFavTotal += order.orderTotal;
+                    totalFavouriteOrders++;
+                    totalFavouriteAmount += order.orderTotal;
+
+                    // Track by restaurant
+                    string restaurantId = order.restaurant.restaurantId;
+                    string restaurantName = order.restaurant.restaurantName;
+
+                    if (customerRestaurantCount.ContainsKey(restaurantId))
+                    {
+                        customerRestaurantCount[restaurantId]++;
+                    }
+                    else
+                    {
+                        customerRestaurantCount[restaurantId] = 1;
+                    }
+
+                    // Global restaurant tracking
+                    if (restaurantFavCount.ContainsKey(restaurantName))
+                    {
+                        restaurantFavCount[restaurantName]++;
+                    }
+                    else
+                    {
+                        restaurantFavCount[restaurantName] = 1;
+                    }
+                }
+            }
+
+            // Display customer stats if they have favourites
+            if (customerFavourites.Count > 0)
+            {
+                Console.WriteLine($"\n{customer.customerName} ({customer.emailAddress}):");
+                Console.WriteLine($"  Total favourite orders: {customerFavourites.Count}");
+                Console.WriteLine($"  Total spent on favourites: ${customerFavTotal:F2}");
+
+                // Display favourite orders by restaurant
+                Console.WriteLine("  Favourite orders by restaurant:");
+                foreach (var restaurantPair in customerRestaurantCount)
+                {
+                    Restaurant restaurant = FindRestaurantById(restaurantPair.Key);
+                    if (restaurant != null)
+                    {
+                        Console.WriteLine($"    • {restaurant.restaurantName}: {restaurantPair.Value} order(s)");
+                    }
+                }
+
+                // Find most frequent restaurant for this customer
+                string mostFrequentRestaurant = "";
+                int maxCount = 0;
+                foreach (var restaurantPair in customerRestaurantCount)
+                {
+                    if (restaurantPair.Value > maxCount)
+                    {
+                        maxCount = restaurantPair.Value;
+                        Restaurant restaurant = FindRestaurantById(restaurantPair.Key);
+                        if (restaurant != null)
+                        {
+                            mostFrequentRestaurant = restaurant.restaurantName;
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(mostFrequentRestaurant))
+                {
+                    Console.WriteLine($"  Most frequently ordered: {mostFrequentRestaurant} ({maxCount} time(s))");
+                }
+            }
+        }
+
+        // Overall summary
+        Console.WriteLine("\n════════════════════════════════════════");
+        Console.WriteLine("Overall Favourite Orders Summary:");
+        Console.WriteLine($"Total favourite orders in system: {totalFavouriteOrders}");
+        Console.WriteLine($"Total amount from favourites: ${totalFavouriteAmount:F2}");
+
+        // Find most popular restaurant across all favourites
+        if (restaurantFavCount.Count > 0)
+        {
+            string mostPopularRestaurant = "";
+            int maxFavCount = 0;
+
+            foreach (var restaurantPair in restaurantFavCount)
+            {
+                if (restaurantPair.Value > maxFavCount)
+                {
+                    maxFavCount = restaurantPair.Value;
+                    mostPopularRestaurant = restaurantPair.Key;
+                }
+            }
+
+            Console.WriteLine($"Most popular restaurant: {mostPopularRestaurant} ({maxFavCount} favourite order(s))");
+        }
+        else
+        {
+            Console.WriteLine("No favourite orders in the system yet.");
+        }
+        Console.WriteLine("════════════════════════════════════════");
     }
 }

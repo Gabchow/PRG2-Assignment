@@ -21,6 +21,7 @@ public class Order
     private List<OrderedFoodItem> OrderedFoodItems;
     private Customer Customer;
     private Restaurant Restaurant;
+    public bool IsFavourite;
 
     public int orderId
     {
@@ -86,6 +87,12 @@ public class Order
     {
         get { return Restaurant; }
         set { Restaurant = value; }
+    }
+
+    public bool isFavourite
+    {
+        get { return IsFavourite; }
+        set { IsFavourite = value; }
     }
 
     // Constant for delivery fee
